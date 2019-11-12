@@ -1,0 +1,96 @@
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/stm32/dac.h>
+#include <libopencm3/stm32/dma.h>
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/timer.h>
+
+void send_dac_sine(void);
+
+#define SINE_TABLE_LEN 256
+const uint16_t sine_table[SINE_TABLE_LEN] = { // now with actual sine
+  2047, 2097, 2147, 2198, 2248, 2298, 2347, 2397, 2446, 2496, 2544, 2593, 2641, 2689, 2737, 2784, 2830, 2877, 2922, 2967, 3012, 3056, 3099, 3142, 3184, 3226, 3266, 3306, 3346, 3384, 3422, 3458, 3494, 3530, 3564, 3597, 3629, 3661, 3691, 3721, 3749, 3776, 3803, 3828, 3852, 3875, 3897, 3918, 3938, 3957, 3974, 3991, 4006, 4020, 4033, 4044, 4055, 4064, 4072, 4079, 4084, 4088, 4092, 4093, 4094, 4093, 4092, 4088, 4084, 4079, 4072, 4064, 4055, 4044, 4033, 4020, 4006, 3991, 3974, 3957, 3938, 3918, 3897, 3875, 3852, 3828, 3803, 3776, 3749, 3721, 3691, 3661, 3629, 3597, 3564, 3530, 3494, 3458, 3422, 3384, 3346, 3306, 3266, 3226, 3184, 3142, 3099, 3056, 3012, 2967, 2922, 2877, 2830, 2784, 2737, 2689, 2641, 2593, 2544, 2496, 2446, 2397, 2347, 2298, 2248, 2198, 2147, 2097, 2047, 1997, 1947, 1896, 1846, 1796, 1747, 1697, 1648, 1598, 1550, 1501, 1453, 1405, 1357, 1310, 1264, 1217, 1172, 1127, 1082, 1038, 995, 952, 910, 868, 828, 788, 748, 710, 672, 636, 600, 564, 530, 497, 465, 433, 403, 373, 345, 318, 291, 266, 242, 219, 197, 176, 156, 137, 120, 103, 88, 74, 61, 50, 39, 30, 22, 15, 10, 6, 2, 1, 0, 1, 2, 6, 10, 15, 22, 30, 39, 50, 61, 74, 88, 103, 120, 137, 156, 176, 197, 219, 242, 266, 291, 318, 345, 373, 403, 433, 465, 497, 530, 564, 600, 636, 672, 710, 748, 788, 828, 868, 910, 952, 995, 1038, 1082, 1127, 1172, 1217, 1264, 1310, 1357, 1405, 1453, 1501, 1550, 1598, 1648, 1697, 1747, 1796, 1846, 1896, 1947, 1997
+};
+
+static void clock_setup(void) {
+  rcc_clock_setup_in_hse_8mhz_out_72mhz(); 
+  rcc_periph_clock_enable(RCC_TIM2);
+  rcc_periph_reset_pulse(RST_TIM2);
+  rcc_periph_clock_enable(RCC_GPIOA);
+}
+
+static void gpio_setup(void) {
+  gpio_set_mode(GPIOA,
+                GPIO_MODE_OUTPUT_10_MHZ,
+                GPIO_CNF_INPUT_ANALOG,
+                GPIO4);
+  gpio_set_mode(GPIOA,
+                GPIO_MODE_OUTPUT_2_MHZ,
+                GPIO_CNF_INPUT_ANALOG,
+                GPIO5);  
+
+
+// PA4 is output
+  //gpio_set_mode(GPIOA, GPIO_MODE_ANALOG, GPIO_PUPD_NONE, GPIO4);
+}
+
+static void timer_setup(void) {
+  timer_set_mode(TIM2, TIM_CR1_CKD_CK_INT, TIM_CR1_CMS_EDGE, TIM_CR1_DIR_UP);
+  timer_continuous_mode(TIM2);
+  timer_set_period(TIM2, 1150);
+  timer_disable_oc_output(TIM2, TIM_OC2 | TIM_OC3 | TIM_OC4);
+  timer_enable_oc_output(TIM2, TIM_OC1);
+  timer_disable_oc_clear(TIM2, TIM_OC1);
+  timer_disable_oc_preload(TIM2, TIM_OC1);
+  timer_set_oc_slow_mode(TIM2, TIM_OC1);
+  timer_set_oc_mode(TIM2, TIM_OC1, TIM_OCM_TOGGLE);
+  timer_set_oc_value(TIM2, TIM_OC1, 500);
+  timer_disable_preload(TIM2);
+
+  timer_set_master_mode(TIM2, TIM_CR2_MMS_COMPARE_OC3REF);
+  timer_enable_counter(TIM2);
+}
+
+void send_dac_sine() {
+  const uint32_t dma = DMA2;
+  const uint32_t ch = DMA_CHANNEL3;
+
+
+  dac_set_waveform_generation(DAC_CR_WAVE1_DIS);
+  dac_dma_disable(CHANNEL_1);
+  dma_disable_channel(dma, ch);
+  dma_channel_reset(dma, ch);
+
+  dma_enable_circular_mode(dma, ch);
+  dma_set_peripheral_address(dma, ch, (uint32_t) &DAC_DHR12R1);
+  dma_set_memory_address(dma, ch, (uint32_t) &sine_table);
+  dma_set_memory_size(dma, ch, DMA_CCR_MSIZE_16BIT);
+  dma_set_peripheral_size(dma, ch, DMA_CCR_PSIZE_16BIT);
+  dma_set_read_from_memory(dma, ch);
+  dma_set_number_of_data(dma, ch, SINE_TABLE_LEN);
+  dma_set_priority(dma, ch, DMA_CCR_PL_VERY_HIGH);
+  dma_enable_memory_increment_mode(dma, ch);
+  dma_disable_peripheral_increment_mode(dma, ch);
+  dma_enable_channel(dma, ch);
+
+  dac_trigger_enable(CHANNEL_1);
+  dac_set_trigger_source(DAC_CR_TSEL1_T2);
+  dac_dma_enable(CHANNEL_1);
+  dac_enable(CHANNEL_1);
+}
+
+int main(void) {
+  clock_setup();
+  gpio_setup();
+  timer_setup();
+  send_dac_sine();
+
+  rcc_periph_clock_enable(RCC_GPIOE);
+
+  /* Blink the LEDs (PD8, PD9, PD10 and PD11) on the board. */
+  while (1) {
+    /* Toggle LEDs. */
+    //    gpio_toggle(GPIOE, GPIO8 | GPIO9 | GPIO10 | GPIO11);
+    //for (int i = 0; i < 1000000; i++) /* Wait a bit. */
+    //  __asm__("nop");
+  }
+}

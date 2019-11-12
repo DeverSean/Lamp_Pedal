@@ -63,7 +63,7 @@ task1(void *args __attribute__((unused))) {
 
 	for (;;) {
 		gpio_toggle(GPIOC,GPIO13);
-		vTaskDelay(pdMS_TO_TICKS(200));
+		vTaskDelay(pdMS_TO_TICKS(5000));
 		if ( ++c >= 'Z' ) {
 			uart_putc(c);
 			uart_putc('\r');
