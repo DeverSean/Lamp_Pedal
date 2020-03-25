@@ -1,0 +1,22 @@
+/* Inititalization module for STM32f103
+ * 
+ * Written by: Sean Dever
+ * 11/14/19
+ *
+ */
+
+/* Includes*/
+#include <libopencm3/stm32/rcc.h>
+#include <libopencm3/stm32/gpio.h>
+#include <libopencm3/cm3/nvic.h>
+#include <libopencm3/stm32/exti.h>
+#include <libopencm3/stm32/timer.h>
+#include <libopencm3/stm32/adc.h>
+
+/*****************************************************  
+ * Set STM32 to 72 MHz.                                     
+ ******************************************************/
+static void clock_setup(void)
+{
+  rcc_clock_setup_in_hse_8mhz_out_72mhz();
+}

@@ -27,11 +27,12 @@
 #include <libopencm3/stm32/timer.h>
 #include <libopencm3/stm32/adc.h>
 
-#include "lamppedal_setup.h"
-
 /* Defines */
 #define FALLING 0
 #define RISING 1
+
+/* Global Variables */
+uint16_t exti_direction = FALLING;
 
 int myTicks = 0;
 
@@ -39,12 +40,12 @@ int myTicks = 0;
 static uint16_t read_adc(uint8_t channel);
 
 
-/* Set STM32 to 72 MHz. 
+/* Set STM32 to 72 MHz. */
 static void clock_setup(void)
 {
   rcc_clock_setup_in_hse_8mhz_out_72mhz();
 }
-*/
+
 
 static void gpio_setup(void)
 {
@@ -54,6 +55,27 @@ static void gpio_setup(void)
   /* Set GPIO12 (in GPIO port C) to 'output push-pull'. */
   gpio_set_mode(GPIOB, GPIO_MODE_OUTPUT_50_MHZ,
 		GPIO_CNF_OUTPUT_PUSHPULL, GPIO5);
+}
+
+static void exti_setup(void)
+{
+  /* Enable GPIOA clock. */
+  rcc_periph_clock_enable(RCC_GPIOA);
+
+  /* Enable AFIO clock. */
+  rcc_periph_clock_enable(RCC_AFIO);
+
+  /* Enable EXTI0 interrupt. */
+  nvic_enable_irq(NVIC_EXTI0_IRQ);
+
+  /* Set GPIO0 (in GPIO port A) to 'input open-drain'. */
+  gpio_set_mode(GPIOA, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, GPIO0);
+
+  /* Configure the EXTI subsystem. */
+  exti_select_source(EXTI0, GPIOA);
+  exti_direction = FALLING;
+  exti_set_trigger(EXTI0, EXTI_TRIGGER_FALLING);
+  exti_enable_request(EXTI0);
 }
 
 static void tim_setup(void)
@@ -108,8 +130,8 @@ static void adc_setup(void){
   adc_power_off(ADC1);
   rcc_peripheral_reset(&RCC_APB2RSTR,RCC_APB2RSTR_ADC1RST);
   rcc_peripheral_clear_reset(&RCC_APB2RSTR,RCC_APB2RSTR_ADC1RST);
-  rcc_set_adcpre(RCC_CFGR_ADCPRE_PCLK2_DIV6);     // Set. 12MHz, Max. 14MHz
-  adc_set_dual_mode(ADC_CR1_DUALMOD_IND);         // Independent mode
+  rcc_set_adcpre(RCC_CFGR_ADCPRE_PCLK2_DIV6);     // Set. 12MHz, Max. 14MHz       
+  adc_set_dual_mode(ADC_CR1_DUALMOD_IND);         // Independent mode             
   adc_disable_scan_mode(ADC1);
   adc_set_right_aligned(ADC1);
   adc_set_single_conversion_mode(ADC1);
@@ -127,9 +149,6 @@ static void adc_setup(void){
 
 void exti0_isr(void)
 {
-  
-  uint16_t zero_cross_error = 8;
-  
   exti_reset_request(EXTI0);
 
   /*  myTicks++;
@@ -147,8 +166,8 @@ void exti0_isr(void)
    * since the timer res is 100us, the ARR value should
    * Increment "fire_delay" times before triggering an interrupt */
   
-  uint16_t fire_delay = (4096-read_adc(3))/55;
-  uint16_t new_time = compare_time + fire_delay + zero_cross_error;
+  uint16_t fire_delay = read_adc(3)/55;
+  uint16_t new_time = compare_time + fire_delay + 8;
   timer_set_oc_value(TIM2, TIM_OC1, new_time);
 }
 

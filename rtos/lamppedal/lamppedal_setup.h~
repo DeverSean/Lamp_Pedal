@@ -1,0 +1,2 @@
+
+extern void clock_setup(void);

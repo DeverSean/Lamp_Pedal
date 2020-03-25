@@ -33,18 +33,13 @@
 #define FALLING 0
 #define RISING 1
 
+/* Global Variables */
+uint16_t exti_direction = FALLING;
+
 int myTicks = 0;
 
 /* Function prototypes */
 static uint16_t read_adc(uint8_t channel);
-
-
-/* Set STM32 to 72 MHz. 
-static void clock_setup(void)
-{
-  rcc_clock_setup_in_hse_8mhz_out_72mhz();
-}
-*/
 
 static void gpio_setup(void)
 {
@@ -127,9 +122,6 @@ static void adc_setup(void){
 
 void exti0_isr(void)
 {
-  
-  uint16_t zero_cross_error = 8;
-  
   exti_reset_request(EXTI0);
 
   /*  myTicks++;
@@ -147,8 +139,8 @@ void exti0_isr(void)
    * since the timer res is 100us, the ARR value should
    * Increment "fire_delay" times before triggering an interrupt */
   
-  uint16_t fire_delay = (4096-read_adc(3))/55;
-  uint16_t new_time = compare_time + fire_delay + zero_cross_error;
+  uint16_t fire_delay = read_adc(3)/55;
+  uint16_t new_time = compare_time + fire_delay + 8;
   timer_set_oc_value(TIM2, TIM_OC1, new_time);
 }
 
