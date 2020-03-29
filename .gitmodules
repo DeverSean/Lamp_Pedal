@@ -5,3 +5,7 @@
 [submodule "stlink"]
 	path = stlink
 	url = https://github.com/ve3wwg/stlink.git
+
+[submodule "rtos/lamppedal"]
+	path = rtos/lamppedal
+	url = https://github.com/DeverSean/lamppedal
